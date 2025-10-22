@@ -19,9 +19,9 @@ This action provides a simple and powerful way to deploy applications to Gokku s
 
 ## Usage
 
-### Git Deploy
+### Single App Deploy
 
-Deploy directly from your repository to the Gokku server:
+Deploy a single application to the Gokku server:
 
 ```yaml
 name: Deploy to Gokku
@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Deploy to Gokku
+      - name: Deploy to API
         uses: thadeu/gokku-gh-action@v1
         with:
           server: ${{ secrets.GOKKU_SERVER }}
@@ -45,9 +45,101 @@ jobs:
           ssh_key: ${{ secrets.GOKKU_SSH_KEY }}
           deploy_type: 'git'
           branch: 'main'
+      
+      - name: Deploy to WORKER
+        uses: thadeu/gokku-gh-action@v1
+        with:
+          server: ${{ secrets.GOKKU_SERVER }}
+          user: ${{ secrets.GOKKU_USER }}
+          app_name: worker
+          ssh_key: ${{ secrets.GOKKU_SSH_KEY }}
+          deploy_type: 'git'
+          branch: 'main'
 ```
 
-### Registry Deploy
+### Multiple Microservices Deploy
+
+Deploy multiple microservices using matrix strategy (recommended for multiple apps):
+
+```yaml
+name: Deploy Multiple Microservices
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [stt, vad]
+        include:
+          - app: stt
+            branch: main
+          - app: vad
+            branch: main
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy ${{ matrix.app }} to Gokku
+        uses: thadeu/gokku-gh-action@v1
+        with:
+          server: ${{ secrets.GOKKU_SERVER }}
+          user: ${{ secrets.GOKKU_USER }}
+          app_name: ${{ matrix.app }}
+          ssh_key: ${{ secrets.GOKKU_SSH_KEY }}
+          deploy_type: 'git'
+          branch: ${{ matrix.branch }}
+```
+
+### Registry Deploy for Multiple Apps
+
+Build and deploy multiple Docker images:
+
+```yaml
+name: Deploy Multiple Apps with Registry
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [stt, vad]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Build ${{ matrix.app }}
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/${{ matrix.app }}:${{ github.sha }} .
+          docker push ghcr.io/${{ github.repository }}/${{ matrix.app }}:${{ github.sha }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        app: [stt, vad]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Deploy ${{ matrix.app }} to Gokku
+        uses: thadeu/gokku-gh-action@v1
+        with:
+          server: ${{ secrets.GOKKU_SERVER }}
+          user: ${{ secrets.GOKKU_USER }}
+          app_name: ${{ matrix.app }}
+          ssh_key: ${{ secrets.GOKKU_SSH_KEY }}
+          deploy_type: 'registry'
+          image: ghcr.io/${{ github.repository }}/${{ matrix.app }}:${{ github.sha }}
+```
+
+### Single App Registry Deploy
 
 Build and push a Docker image, then deploy it to Gokku:
 
@@ -66,10 +158,10 @@ jobs:
       
       - name: Build and Push
         run: |
-          docker build -t ghcr.io/${{ github.repository }}:${{ github.sha }} .
-          docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
+          docker build -t ghcr.io/myrepository:${{ github.sha }} .
+          docker push ghcr.io/myrepository:${{ github.sha }}
 
-      - name: Deploy to Gokku
+      - name: Deploy to api
         uses: thadeu/gokku-gh-action@v1
         with:
           server: ${{ secrets.GOKKU_SERVER }}
@@ -77,7 +169,17 @@ jobs:
           app_name: api
           ssh_key: ${{ secrets.GOKKU_SSH_KEY }}
           deploy_type: 'registry'
-          image: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          image: ghcr.io/myrepository:${{ github.sha }}
+      
+      - name: Deploy to worker
+        uses: thadeu/gokku-gh-action@v1
+        with:
+          server: ${{ secrets.GOKKU_SERVER }}
+          user: ${{ secrets.GOKKU_USER }}
+          app_name: worker
+          ssh_key: ${{ secrets.GOKKU_SSH_KEY }}
+          deploy_type: 'registry'
+          image: ghcr.io/myrepository:${{ github.sha }}
 ```
 
 ## Inputs
@@ -114,6 +216,13 @@ Configure the following secrets in your repository settings:
 3. Action connects to Gokku server via SSH
 4. `gokku.yml` is updated with the new image reference
 5. Gokku deploys the application using the new image
+
+### Multiple Microservices Flow
+1. GitHub Actions triggers on push
+2. Matrix strategy creates parallel jobs for each app
+3. Each job deploys its respective app independently
+4. All apps are deployed in parallel for faster execution
+5. If one app fails, others continue deploying
 
 ## Requirements
 
