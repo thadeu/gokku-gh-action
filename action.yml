@@ -1,0 +1,52 @@
+name: 'Gokku Deploy'
+description: 'Deploy to Gokku server via git or registry'
+
+branding:
+  icon: "git-merge"
+  color: "red"
+
+inputs:
+  server:
+    description: 'Gokku server IP/hostname'
+    required: true
+  user:
+    description: 'SSH user'
+    required: true
+    default: 'ubuntu'
+  app_name:
+    description: 'App name on Gokku'
+    required: true
+  branch:
+    description: 'Branch to deploy'
+    required: true
+    default: 'main'
+  ssh_key:
+    description: 'SSH private key'
+    required: true
+  deploy_type:
+    description: 'Deploy type: git or registry'
+    required: false
+    default: 'git'
+  image:
+    description: 'Docker image (only for registry deploy)'
+    required: false
+
+runs:
+  using: docker
+  image: Dockerfile
+  
+# runs:
+#   using: 'composite'
+#   steps:
+#     - name: Gokku deploy
+#       shell: bash
+#       run: |
+#         chmod +x ${{ github.action_path }}/entrypoint.sh
+#         ${{ github.action_path }}/entrypoint.sh \
+#           "${{ inputs.server }}" \
+#           "${{ inputs.user }}" \
+#           "${{ inputs.app_name }}" \
+#           "${{ inputs.ssh_key }}" \
+#           "${{ inputs.deploy_type }}" \
+#           "${{ inputs.branch }}" \
+#           "${{ inputs.image }}"
